@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 2,
+  "snapshotSequence": 41,
+  "threads": [
+    {
+      "id": "thread-working",
+      "projectId": "project-a",
+      "title": "Fix the flaky login test",
+      "providerInstanceId": "claudeAgent",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-5-5",
+        "options": [{ "id": "effort", "value": "high" }]
+      },
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "branch": "fix/login",
+      "worktreePath": null,
+      "lineage": {
+        "parentThreadId": null,
+        "relationshipToParent": null,
+        "rootThreadId": "thread-working"
+      },
+      "forkedFrom": null,
+      "activeProviderThreadId": "provider-thread-1",
+      "latestRunId": "run-3",
+      "activeRunId": "run-3",
+      "activityRunStatus": "running",
+      "activityRunStartedAt": "2026-11-06T19:40:00.000Z",
+      "status": "running",
+      "pendingRuntimeRequest": null,
+      "pendingGuestMessageCount": 0,
+      "pendingBackgroundTasks": [],
+      "latestVisibleMessage": {
+        "id": "m-9",
+        "role": "assistant",
+        "text": "**Running** the test suite again",
+        "updatedAt": "2026-11-06T19:41:00.000Z"
+      },
+      "latestUserMessageAt": "2026-11-06T19:39:00.000Z",
+      "hasActionableProposedPlan": false,
+      "itemCount": 40,
+      "visibleItemCount": 31,
+      "createdAt": "2026-11-06T18:00:00.000Z",
+      "updatedAt": "2026-11-06T19:41:00.000Z",
+      "archivedAt": null,
+      "settledOverride": null,
+      "settledAt": null,
+      "deletedAt": null,
+      "someFieldFromANewerServer": { "nested": true }
+    },
+    {
+      "id": "thread-parent",
+      "projectId": "project-a",
+      "title": "Refactor billing",
+      "lineage": {
+        "parentThreadId": null,
+        "relationshipToParent": null,
+        "rootThreadId": "thread-parent"
+      },
+      "activeProviderThreadId": "provider-thread-2",
+      "latestRunId": "run-1",
+      "activeRunId": "run-1",
+      "activityRunStatus": "running",
+      "status": "running",
+      "pendingRuntimeRequest": null,
+      "latestVisibleMessage": null,
+      "latestUserMessageAt": null,
+      "itemCount": 12,
+      "visibleItemCount": 8,
+      "createdAt": "2026-11-06T17:00:00.000Z",
+      "updatedAt": "2026-11-06T19:30:00.000Z",
+      "archivedAt": null,
+      "settledAt": null,
+      "deletedAt": null
+    },
+    {
+      "id": "thread-subagent",
+      "projectId": "project-a",
+      "title": "Subagent: migrate invoices",
+      "lineage": {
+        "parentThreadId": "thread-parent",
+        "relationshipToParent": "subagent",
+        "rootThreadId": "thread-parent"
+      },
+      "activeProviderThreadId": "provider-thread-3",
+      "latestRunId": "run-9",
+      "activeRunId": "run-9",
+      "activityRunStatus": "waiting",
+      "status": "waiting",
+      "pendingRuntimeRequest": {
+        "id": "req-1",
+        "kind": "command_approval",
+        "createdAt": "2026-11-06T19:31:00.000Z"
+      },
+      "latestVisibleMessage": null,
+      "latestUserMessageAt": null,
+      "itemCount": 3,
+      "visibleItemCount": 3,
+      "createdAt": "2026-11-06T19:20:00.000Z",
+      "updatedAt": "2026-11-06T19:31:00.000Z",
+      "archivedAt": null,
+      "settledAt": null,
+      "deletedAt": null
+    },
+    {
+      "id": "thread-limited",
+      "projectId": "project-b",
+      "title": "Write release notes",
+      "lineage": {
+        "parentThreadId": null,
+        "relationshipToParent": null,
+        "rootThreadId": "thread-limited"
+      },
+      "activeProviderThreadId": null,
+      "latestRunId": "run-2",
+      "activeRunId": null,
+      "activityRunStatus": null,
+      "status": "failed",
+      "lastError": "Usage limit reached",
+      "lastErrorClass": "usage_limit",
+      "pendingRuntimeRequest": null,
+      "latestVisibleMessage": null,
+      "latestUserMessageAt": "2026-11-05T10:00:00.000Z",
+      "itemCount": 6,
+      "visibleItemCount": 6,
+      "createdAt": "2026-11-05T09:00:00.000Z",
+      "updatedAt": "2026-11-05T10:05:00.000Z",
+      "archivedAt": null,
+      "settledAt": null,
+      "deletedAt": null
+    },
+    {
+      "id": "thread-archived",
+      "projectId": "project-b",
+      "title": "Old spike",
+      "lineage": {
+        "parentThreadId": null,
+        "relationshipToParent": null,
+        "rootThreadId": "thread-archived"
+      },
+      "activeProviderThreadId": null,
+      "latestRunId": "run-1",
+      "activeRunId": null,
+      "status": "completed",
+      "pendingRuntimeRequest": null,
+      "latestVisibleMessage": null,
+      "latestUserMessageAt": null,
+      "itemCount": 2,
+      "visibleItemCount": 2,
+      "createdAt": "2026-10-01T09:00:00.000Z",
+      "updatedAt": "2026-10-01T10:00:00.000Z",
+      "archivedAt": "2026-10-02T00:00:00.000Z",
+      "settledAt": null,
+      "deletedAt": null
+    }
+  ],
+  "archivedThreads": [],
+  "projects": [
+    { "id": "project-a", "title": "web-app", "workspaceRoot": "/work/web-app", "archivedAt": null },
+    { "id": "project-b", "title": "docs", "workspaceRoot": "/work/docs", "archivedAt": null }
+  ],
+  "olderSettled": { "before": "2026-11-01T00:00:00.000Z", "asOfSequence": 41, "counts": [] }
+}

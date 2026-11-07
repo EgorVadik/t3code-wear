@@ -1,0 +1,77 @@
+{
+  "providers": [
+    {
+      "instanceId": "claudeAgent",
+      "driver": "claudeAgent",
+      "displayName": "Claude",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "models": [],
+      "slashCommands": [],
+      "skills": [],
+      "usageLimits": {
+        "checkedAt": "2026-11-06T19:55:32.045Z",
+        "credentialFingerprint": "acct-1",
+        "windows": [
+          {
+            "id": "seven_day",
+            "kind": "weekly",
+            "label": "Weekly",
+            "usedPercent": 2,
+            "resetsAt": "2026-11-12T06:00:00.227Z",
+            "windowDurationMins": 10080
+          },
+          {
+            "id": "five_hour",
+            "kind": "session",
+            "label": "Session",
+            "usedPercent": 10.4,
+            "resetsAt": "2026-11-06T23:50:00.226Z",
+            "windowDurationMins": 300
+          }
+        ]
+      }
+    },
+    {
+      "instanceId": "codex",
+      "driver": "codex",
+      "displayName": "Codex",
+      "enabled": true,
+      "installed": true,
+      "status": "ready",
+      "usageLimits": {
+        "checkedAt": "2026-11-06T19:56:49.813Z",
+        "windows": [
+          {
+            "id": "primary",
+            "kind": "session",
+            "label": "Session",
+            "usedPercent": 92,
+            "resetsAt": "2026-11-06T23:53:50.000Z"
+          }
+        ],
+        "resetCredits": { "availableCount": 0 }
+      }
+    },
+    {
+      "instanceId": "opencode",
+      "driver": "opencode",
+      "displayName": "OpenCode",
+      "enabled": true,
+      "status": "ready",
+      "usageLimits": {
+        "checkedAt": "2026-11-06T19:56:49.771Z",
+        "windows": [],
+        "unavailable": { "reason": "unsupported" }
+      }
+    },
+    {
+      "instanceId": "cursor",
+      "driver": "cursor",
+      "displayName": "Cursor",
+      "enabled": false,
+      "status": "disabled"
+    }
+  ]
+}

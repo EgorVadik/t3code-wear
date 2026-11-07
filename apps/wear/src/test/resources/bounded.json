@@ -1,0 +1,139 @@
+{
+  "snapshotSequence": 41,
+  "projection": {
+    "thread": { "id": "thread-working" },
+    "runs": [],
+    "nodes": [],
+    "turnItems": [],
+    "visibleTurnItems": [
+      {
+        "position": 0,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-1",
+        "item": {
+          "id": "i-1",
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "ordinal": 1,
+          "messageId": "m-1",
+          "text": "Why does the login test fail on CI?",
+          "attachments": [],
+          "inputIntent": "default",
+          "updatedAt": "2026-11-06T19:39:00.000Z"
+        }
+      },
+      {
+        "position": 1,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-2",
+        "item": {
+          "id": "i-2",
+          "type": "reasoning",
+          "status": "completed",
+          "title": null,
+          "text": "**Checking CI logs**",
+          "streaming": false
+        }
+      },
+      {
+        "position": 2,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-3",
+        "item": {
+          "id": "i-3",
+          "type": "command_execution",
+          "status": "completed",
+          "title": null,
+          "input": "/bin/zsh -lc 'pnpm test login'",
+          "outputOmitted": true,
+          "exitCode": 1
+        }
+      },
+      {
+        "position": 3,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-4",
+        "item": {
+          "id": "i-4",
+          "type": "checkpoint",
+          "status": "completed",
+          "checkpointId": "c-1",
+          "files": []
+        }
+      },
+      {
+        "position": 4,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-5",
+        "item": {
+          "id": "i-5",
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "messageId": "m-2",
+          "text": "## Cause\nThe test races the **session cookie**.",
+          "streaming": false
+        }
+      },
+      {
+        "position": 5,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-6",
+        "item": {
+          "id": "i-6",
+          "type": "approval_request",
+          "status": "pending",
+          "title": "Run migration",
+          "requestId": "r-1",
+          "requestKind": "command",
+          "prompt": "Allow running pnpm db:migrate?"
+        }
+      },
+      {
+        "position": 6,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-7",
+        "item": {
+          "id": "i-7",
+          "type": "file_change",
+          "status": "running",
+          "title": null,
+          "fileName": "/work/web-app/src/login.test.ts"
+        }
+      },
+      {
+        "position": 7,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-8",
+        "item": { "id": "i-8", "type": "a_turn_item_from_the_future", "status": "completed" }
+      },
+      {
+        "position": 8,
+        "visibility": "local",
+        "sourceThreadId": "thread-working",
+        "sourceItemId": "i-9",
+        "item": {
+          "id": "i-9",
+          "type": "assistant_message",
+          "status": "running",
+          "messageId": "m-3",
+          "text": "Fixing it now",
+          "streaming": true
+        }
+      }
+    ],
+    "updatedAt": "2026-11-06T19:41:00.000Z"
+  },
+  "historyCursor": "cursor-older",
+  "hasMoreHistory": true,
+  "latestLocalTurnOrdinal": 3
+}

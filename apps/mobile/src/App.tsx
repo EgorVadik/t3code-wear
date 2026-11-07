@@ -75,6 +75,7 @@ import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { installUiRuntimeMemoryWarningGc } from "./lib/useUiRuntimeMemoryWarningGc";
 import { SubscriptionUsageCoordinator } from "./widgets/SubscriptionUsageCoordinator";
 import { installSubscriptionUsageRefresh } from "./widgets/useSubscriptionUsage";
+import { installWearSync } from "./features/wear/wearSync";
 import { GlobalVoiceInputControl } from "./features/voice-input/GlobalVoiceInputControl";
 import { restoreSettingsLinkState } from "./features/settings/settings-navigation";
 import {
@@ -189,6 +190,7 @@ const appServiceDisposers = [
   }),
   installAppearanceRuntime(),
   installSubscriptionUsageRefresh(),
+  installWearSync(),
   installPermissionUpdateNotice(),
   installThreadOutboxDelivery(),
   installComposerAttachmentUploads(),

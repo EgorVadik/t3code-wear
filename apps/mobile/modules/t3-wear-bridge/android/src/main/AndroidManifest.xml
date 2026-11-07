@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+  <!-- A connectedDevice foreground service needs one device permission; this one is granted at install. -->
+  <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
+  <application>
+    <service
+      android:name="expo.modules.t3wearbridge.T3WearSyncService"
+      android:exported="false"
+      android:foregroundServiceType="connectedDevice" />
+  </application>
+</manifest>

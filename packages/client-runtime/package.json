@@ -235,6 +235,10 @@
       "types": "./src/state/environmentHttpAuth.ts",
       "default": "./src/state/environmentHttpAuth.ts"
     },
+    "./state/companionProxy": {
+      "types": "./src/state/companionProxy.ts",
+      "default": "./src/state/companionProxy.ts"
+    },
     "./state/peerPairingCode": {
       "types": "./src/state/peerPairingCode.ts",
       "default": "./src/state/peerPairingCode.ts"
