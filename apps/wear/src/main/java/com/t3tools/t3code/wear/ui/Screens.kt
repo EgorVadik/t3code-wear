@@ -16,7 +16,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,14 +50,19 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import com.t3tools.t3code.wear.domain.PendingRequest
+import com.t3tools.t3code.wear.domain.QuestionDraft
 import com.t3tools.t3code.wear.domain.ThreadRow
 import com.t3tools.t3code.wear.domain.ThreadStatus
 import com.t3tools.t3code.wear.domain.TimelineRow
 import com.t3tools.t3code.wear.domain.UsageCard
+import com.t3tools.t3code.wear.domain.buildAnswers
 import com.t3tools.t3code.wear.domain.formatAgo
 import com.t3tools.t3code.wear.domain.formatResetsIn
 import com.t3tools.t3code.wear.domain.watchText
 import java.time.Instant
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 // Buttons, cards and headers shrink as they near the round edge instead of being clipped by it.
 // Plain text is left unscaled: scaling a tall block breaks the spacing between neighbouring items.
@@ -223,26 +231,71 @@ private fun TransformingLazyColumnItemScope.ThreadCard(
 }
 
 @Composable
-fun ThreadScreen(model: ThreadViewModel) {
+fun ThreadScreen(model: ThreadViewModel, onReply: () -> Unit) {
     val state by model.state.collectAsStateWithLifecycle()
-    ThreadContent(state, onLoadOlder = model::loadOlder)
+    ThreadContent(
+        state,
+        onLoadOlder = model::loadOlder,
+        onReply = onReply,
+        onApprove = model::respondToApproval,
+        onAnswer = model::answerQuestions,
+    )
 }
 
 @Composable
-fun ThreadContent(state: ThreadState, onLoadOlder: () -> Unit, now: Instant = Instant.now()) {
+fun ThreadContent(
+    state: ThreadState,
+    onLoadOlder: () -> Unit,
+    onReply: () -> Unit,
+    onApprove: (requestId: String, decision: String) -> Unit,
+    onAnswer: (requestId: String, answers: JsonObject) -> Unit,
+    now: Instant = Instant.now(),
+) {
     val listState = rememberTransformingLazyColumnState()
     val spec = rememberTransformationSpec()
     var scrolledToLatest by remember { mutableStateOf(false) }
-    // Open at the newest message, like a chat; later refreshes leave the scroll position alone.
-    LaunchedEffect(state.loaded, state.rows.size) {
-        if (state.loaded && state.rows.isNotEmpty() && !scrolledToLatest) {
-            listState.scrollToItem(state.rows.size + LEADING_ITEMS)
-            // scrollToItem lands the item mid-screen; settle at the very end so the newest line clears the bezel.
-            listState.scrollBy(Float.MAX_VALUE)
-            scrolledToLatest = true
+    // Answers picked so far, by request id and then question id.
+    var drafts by remember { mutableStateOf(mapOf<String, Map<String, QuestionDraft>>()) }
+    fun updateDraft(requestId: String, questionId: String, change: (QuestionDraft) -> QuestionDraft) {
+        val forRequest = drafts[requestId].orEmpty()
+        drafts = drafts + (requestId to forRequest + (questionId to change(forRequest[questionId] ?: QuestionDraft())))
+    }
+    var speakingFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val speak = rememberVoiceInput("Your answer") { text ->
+        speakingFor?.let { (requestId, questionId) -> updateDraft(requestId, questionId) { it.copy(custom = text) } }
+    }
+    // Like a chat: open at the newest message and keep following new ones, which also keeps the
+    // Reply button in view. Scrolling up to read stops following until the end is reached again.
+    var following by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling && scrolledToLatest) following = !listState.canScrollForward
         }
     }
-    ScreenScaffold(scrollState = listState) { contentPadding ->
+    LaunchedEffect(state.loaded, state.rows) {
+        if (!state.loaded || state.rows.isEmpty()) return@LaunchedEffect
+        if (!scrolledToLatest) {
+            listState.scrollToItem(state.rows.size + LEADING_ITEMS)
+            scrolledToLatest = true
+        } else if (!following) {
+            return@LaunchedEffect
+        }
+        // Settle at the very end, where the Reply edge button shows. Items measure lazily, so one
+        // scroll can stop short of it.
+        repeat(MAX_SCROLL_TO_END_PASSES) {
+            listState.scrollBy(Float.MAX_VALUE)
+            withFrameNanos {}
+            if (!listState.canScrollForward) return@LaunchedEffect
+        }
+    }
+    ScreenScaffold(
+        scrollState = listState,
+        edgeButton = {
+            if (state.loaded) {
+                EdgeButton(onClick = onReply, buttonSize = EdgeButtonSize.Small) { Text("Reply") }
+            }
+        },
+    ) { contentPadding ->
         TransformingLazyColumn(state = listState, contentPadding = contentPadding) {
             item {
                 Column(plain().padding(horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -287,7 +340,35 @@ fun ThreadContent(state: ThreadState, onLoadOlder: () -> Unit, now: Instant = In
             } else if (state.rows.isEmpty()) {
                 item { Hint(spec, state.error ?: "Nothing here yet") }
             } else {
-                items(state.rows.size, key = { state.rows[it].key }) { index -> TimelineItem(spec, state.rows[index]) }
+                for (row in state.rows) {
+                    item(key = row.key) { TimelineItem(spec, row) }
+                    val request = (row as? TimelineRow.Attention)?.request ?: continue
+                    requestItems(
+                        spec = spec,
+                        request = request,
+                        responding = state.responding == request.requestId,
+                        enabled = state.responding == null,
+                        drafts = drafts[request.requestId].orEmpty(),
+                        onApprove = { decision -> onApprove(request.requestId, decision) },
+                        onToggle = { questionId, value ->
+                            updateDraft(request.requestId, questionId) { draft ->
+                                val multi = (request as PendingRequest.Questions).questions.first { it.id == questionId }.multiSelect
+                                val selected = when {
+                                    !multi -> listOf(value)
+                                    value in draft.selected -> draft.selected - value
+                                    else -> draft.selected + value
+                                }
+                                QuestionDraft(selected = selected)
+                            }
+                        },
+                        onSpeak = { questionId ->
+                            speakingFor = request.requestId to questionId
+                            speak()
+                        },
+                        onSubmit = { answers -> onAnswer(request.requestId, answers) },
+                    )
+                }
+                state.actionError?.let { error -> item { Hint(spec, error) } }
                 item { Hint(spec, state.error ?: state.updatedAt?.let { "Updated ${formatAgo(it, now)}" } ?: "") }
             }
         }
@@ -295,6 +376,7 @@ fun ThreadContent(state: ThreadState, onLoadOlder: () -> Unit, now: Instant = In
 }
 
 private const val LEADING_ITEMS = 2
+private const val MAX_SCROLL_TO_END_PASSES = 5
 
 @Composable
 private fun TransformingLazyColumnItemScope.TimelineItem(spec: TransformationSpec, row: TimelineRow) {
@@ -346,7 +428,7 @@ private fun TransformingLazyColumnItemScope.TimelineItem(spec: TransformationSpe
                 color = if (row.open) StatusColors.attention else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             row.detail?.let { Text(watchText(it), style = MaterialTheme.typography.bodySmall, maxLines = 6, overflow = TextOverflow.Ellipsis) }
-            if (row.open) {
+            if (row.open && row.request == null) {
                 Text(
                     "Answer from your phone or desktop",
                     style = MaterialTheme.typography.labelSmall,
@@ -367,6 +449,151 @@ private fun TransformingLazyColumnItemScope.TimelineItem(spec: TransformationSpe
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** Answer buttons under an open approval or question; each is its own item so it shrinks at the edge. */
+private fun TransformingLazyColumnScope.requestItems(
+    spec: TransformationSpec,
+    request: PendingRequest,
+    responding: Boolean,
+    enabled: Boolean,
+    drafts: Map<String, QuestionDraft>,
+    onApprove: (decision: String) -> Unit,
+    onToggle: (questionId: String, value: String) -> Unit,
+    onSpeak: (questionId: String) -> Unit,
+    onSubmit: (JsonObject) -> Unit,
+) {
+    val key = request.requestId
+    if (responding) {
+        item(key = "$key-busy") { Loading(spec) }
+        return
+    }
+    when (request) {
+        is PendingRequest.Approval -> for (option in request.options) {
+            val declines = option.decision == "decline" || option.decision == "cancel"
+            item(key = "$key-${option.decision}") {
+                Button(
+                    onClick = { onApprove(option.decision) },
+                    modifier = surface(spec),
+                    enabled = enabled,
+                    transformation = SurfaceTransformation(spec),
+                    colors = if (declines) ButtonDefaults.outlinedButtonColors() else ButtonDefaults.filledTonalButtonColors(),
+                    border = if (declines) ButtonDefaults.outlinedButtonBorder(enabled = enabled) else null,
+                    label = { Text(option.label, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                )
+            }
+        }
+        is PendingRequest.Questions -> {
+            // One single-choice question answers with one tap; anything else is picked, then submitted.
+            val oneTap = request.questions.size == 1 && !request.questions[0].multiSelect
+            for (question in request.questions) {
+                val draft = drafts[question.id]
+                val spoken = draft?.custom?.takeIf { it.isNotBlank() }
+                if (request.questions.size > 1) {
+                    item(key = "$key-${question.id}-ask") { Hint(spec, question.question) }
+                }
+                for (option in question.options) {
+                    val selected = spoken == null && option.value in draft?.selected.orEmpty()
+                    item(key = "$key-${question.id}-${option.value}") {
+                        Button(
+                            onClick = {
+                                if (oneTap) {
+                                    onSubmit(JsonObject(mapOf(question.id to JsonPrimitive(option.value))))
+                                } else {
+                                    onToggle(question.id, option.value)
+                                }
+                            },
+                            modifier = surface(spec),
+                            enabled = enabled,
+                            transformation = SurfaceTransformation(spec),
+                            colors = if (selected) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
+                            label = { Text(option.label, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        )
+                    }
+                }
+                if (question.allowCustomAnswer) {
+                    item(key = "$key-${question.id}-voice") {
+                        Button(
+                            onClick = { onSpeak(question.id) },
+                            modifier = surface(spec),
+                            enabled = enabled,
+                            transformation = SurfaceTransformation(spec),
+                            colors = ButtonDefaults.outlinedButtonColors(),
+                            border = ButtonDefaults.outlinedButtonBorder(enabled = enabled),
+                            label = { Text(spoken?.let { "“$it”" } ?: "Answer by voice", maxLines = 3, overflow = TextOverflow.Ellipsis) },
+                        )
+                    }
+                }
+            }
+            val answers = buildAnswers(request.questions, drafts)
+            if (!oneTap || answers != null) {
+                item(key = "$key-submit") {
+                    Button(
+                        onClick = { answers?.let(onSubmit) },
+                        modifier = surface(spec),
+                        enabled = enabled && answers != null,
+                        transformation = SurfaceTransformation(spec),
+                        label = { Text("Submit") },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ReplyScreen(model: ReplyViewModel, onSent: () -> Unit) {
+    val state by model.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.sent) { if (state.sent) onSent() }
+    ReplyContent(state, onText = model::setText, onSend = model::send)
+}
+
+/** Dictate, read it back, then send: a misheard reply never reaches the agent unchecked. */
+@Composable
+fun ReplyContent(state: ReplyState, onText: (String) -> Unit, onSend: () -> Unit) {
+    val listState = rememberTransformingLazyColumnState()
+    val spec = rememberTransformationSpec()
+    val speak = rememberVoiceInput("Reply", onText)
+    var askedOnce by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!askedOnce && state.text.isEmpty()) {
+            askedOnce = true
+            speak()
+        }
+    }
+    ScreenScaffold(
+        scrollState = listState,
+        edgeButton = {
+            EdgeButton(
+                onClick = onSend,
+                buttonSize = EdgeButtonSize.Medium,
+                enabled = state.text.isNotBlank() && !state.sending,
+            ) { Text(if (state.sending) "Sending…" else "Send") }
+        },
+    ) { contentPadding ->
+        TransformingLazyColumn(state = listState, contentPadding = contentPadding) {
+            item { Header(spec, "Reply") }
+            item {
+                if (state.text.isBlank()) {
+                    Hint(spec, "Tap Speak and say your reply.")
+                } else {
+                    InfoCard(spec) { Text(state.text, style = MaterialTheme.typography.bodyMedium) }
+                }
+            }
+            item {
+                Button(
+                    onClick = speak,
+                    modifier = surface(spec),
+                    enabled = !state.sending,
+                    transformation = SurfaceTransformation(spec),
+                    colors = ButtonDefaults.outlinedButtonColors(),
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = !state.sending),
+                    label = { Text(if (state.text.isBlank()) "Speak" else "Speak again") },
+                )
+            }
+            state.error?.let { error -> item { Hint(spec, error) } }
+        }
     }
 }
 

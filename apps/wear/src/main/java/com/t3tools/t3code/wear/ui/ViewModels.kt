@@ -18,6 +18,7 @@ import com.t3tools.t3code.wear.domain.usageCards
 import com.t3tools.t3code.wear.link.PhoneEnvironment
 import com.t3tools.t3code.wear.wire.ProjectedTurnItem
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
 
 data class EnvironmentHealth(
     val environment: PhoneEnvironment,
@@ -94,6 +96,9 @@ data class ThreadState(
     val loaded: Boolean = false,
     val error: String? = null,
     val updatedAt: Instant? = null,
+    /** The request being answered right now. */
+    val responding: String? = null,
+    val actionError: String? = null,
 )
 
 class ThreadViewModel(
@@ -145,8 +150,37 @@ class ThreadViewModel(
             if (olderItems.isEmpty()) olderCursor = detail.historyCursor.takeIf { detail.hasMoreHistory }
             fetchedVersion = version
             publishRows(error = null)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             mutable.update { it.copy(error = describe(error), loaded = true) }
+        }
+    }
+
+    fun respondToApproval(requestId: String, decision: String) = respond(requestId) {
+        graph.phone.respondToApproval(environmentId, threadId, requestId, decision)
+    }
+
+    fun answerQuestions(requestId: String, answers: JsonObject) = respond(requestId) {
+        graph.phone.answerQuestions(environmentId, threadId, requestId, answers)
+    }
+
+    private fun respond(requestId: String, call: suspend () -> Unit) {
+        if (state.value.responding != null) return
+        mutable.update { it.copy(responding = requestId, actionError = null) }
+        viewModelScope.launch {
+            try {
+                call()
+                // The thread moved; fetch it now rather than on the next poll.
+                fetchedVersion = null
+                refresh()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutable.update { it.copy(actionError = describe(error)) }
+            } finally {
+                mutable.update { it.copy(responding = null) }
+            }
         }
     }
 
@@ -161,6 +195,8 @@ class ThreadViewModel(
                 olderItems = page.items + olderItems
                 olderCursor = page.nextCursor.takeIf { page.hasMoreHistory }
                 publishRows(error = null)
+            } catch (error: CancellationException) {
+                throw error
             } catch (error: Exception) {
                 mutable.update { it.copy(error = describe(error)) }
             } finally {
@@ -221,6 +257,41 @@ class UsageViewModel(private val graph: AppGraph) : ViewModel() {
             graph.usage.refreshAll(graph.links.environments.value)
         } finally {
             refreshing.value = false
+        }
+    }
+}
+
+data class ReplyState(
+    val text: String = "",
+    val sending: Boolean = false,
+    val sent: Boolean = false,
+    val error: String? = null,
+)
+
+/** A dictated reply, shown for a check before the phone queues it in the thread. */
+class ReplyViewModel(
+    private val graph: AppGraph,
+    private val environmentId: String,
+    private val threadId: String,
+) : ViewModel() {
+    private val mutable = MutableStateFlow(ReplyState())
+    val state: StateFlow<ReplyState> = mutable
+
+    fun setText(text: String) = mutable.update { it.copy(text = text, error = null) }
+
+    fun send() {
+        val text = state.value.text.trim()
+        if (text.isEmpty() || state.value.sending) return
+        mutable.update { it.copy(sending = true, error = null) }
+        viewModelScope.launch {
+            try {
+                graph.phone.sendMessage(environmentId, threadId, text)
+                mutable.update { it.copy(sending = false, sent = true) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutable.update { it.copy(sending = false, error = describe(error)) }
+            }
         }
     }
 }

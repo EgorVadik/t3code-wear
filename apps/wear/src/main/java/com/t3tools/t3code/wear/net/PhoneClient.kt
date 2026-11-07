@@ -17,6 +17,7 @@ import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.json.JsonObject
 
 sealed class PhoneException(message: String) : Exception(message) {
     /** No phone is paired and nearby. */
@@ -65,6 +66,38 @@ class PhoneClient(
     /** The phone throttles re-probing provider quotas, so this is cheap to call. */
     suspend fun providers(environmentId: String): ProvidersPayload =
         ask(PhoneRequest(id = newId(), environmentId = environmentId, kind = "usage"), ProvidersPayload.serializer())
+
+    /** Sends a reply through the phone's outbox, with the thread's current model and settings. */
+    suspend fun sendMessage(environmentId: String, threadId: String, text: String) =
+        act(PhoneRequest(id = newId(), environmentId = environmentId, kind = "send", threadId = threadId, text = text))
+
+    suspend fun respondToApproval(environmentId: String, threadId: String, requestId: String, decision: String) =
+        act(
+            PhoneRequest(
+                id = newId(),
+                environmentId = environmentId,
+                kind = "approve",
+                threadId = threadId,
+                requestId = requestId,
+                decision = decision,
+            ),
+        )
+
+    suspend fun answerQuestions(environmentId: String, threadId: String, requestId: String, answers: JsonObject) =
+        act(
+            PhoneRequest(
+                id = newId(),
+                environmentId = environmentId,
+                kind = "answer",
+                threadId = threadId,
+                requestId = requestId,
+                answers = answers,
+            ),
+        )
+
+    private suspend fun act(request: PhoneRequest) {
+        ask(request, JsonObject.serializer())
+    }
 
     private suspend fun <T> ask(request: PhoneRequest, deserializer: DeserializationStrategy<T>): T {
         val answer = CompletableDeferred<PhoneReply>()

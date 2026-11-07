@@ -32,6 +32,8 @@ sealed interface TimelineRow {
         val title: String,
         val detail: String?,
         val open: Boolean,
+        /** Set while the agent waits on an answer the watch can give. */
+        val request: PendingRequest? = null,
     ) : TimelineRow
 
     data class Plan(override val key: String, val markdown: String) : TimelineRow
@@ -114,20 +116,23 @@ internal fun unwrapShell(command: String): String =
 
 private fun attentionRow(key: String, item: JsonObject): TimelineRow.Attention? {
     val open = item.string("status") in LIVE_ITEM_STATUSES
+    val requestId = item.string("requestId")
     return when (item.string("type")) {
         "approval_request" -> TimelineRow.Attention(
             key = key,
             title = if (open) "Approval needed" else "Approval",
             detail = item.string("prompt") ?: item.string("reason") ?: item.string("title"),
             open = open,
+            request = requestId?.takeIf { open }?.let { PendingRequest.Approval(it, approvalOptions(item)) },
         )
         "user_input_request" -> {
-            val questions = (item["questions"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.string("question") }
+            val questions = (item["questions"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(::question) }.orEmpty()
             TimelineRow.Attention(
                 key = key,
                 title = if (open) "Question for you" else "Question",
-                detail = questions?.joinToString("\n")?.ifBlank { null },
+                detail = questions.joinToString("\n") { it.question }.ifBlank { null },
                 open = open,
+                request = requestId?.takeIf { open && questions.isNotEmpty() }?.let { PendingRequest.Questions(it, questions) },
             )
         }
         "secret_request" -> TimelineRow.Attention(

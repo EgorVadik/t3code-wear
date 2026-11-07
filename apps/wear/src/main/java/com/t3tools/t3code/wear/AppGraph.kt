@@ -9,6 +9,7 @@ import com.t3tools.t3code.wear.data.ShellRepository
 import com.t3tools.t3code.wear.data.UsageRepository
 import com.t3tools.t3code.wear.link.LinkProtocol
 import com.t3tools.t3code.wear.link.LinkStore
+import com.t3tools.t3code.wear.link.OngoingThreads
 import com.t3tools.t3code.wear.link.PhoneEnvironments
 import com.t3tools.t3code.wear.net.PhoneClient
 import com.t3tools.t3code.wear.net.PhoneException
@@ -22,6 +23,7 @@ class AppGraph(context: Context) {
     val phone = PhoneClient(send = ::sendToPhone)
     val shells = ShellRepository(this)
     val usage = UsageRepository(this)
+    val ongoing = OngoingThreads(appContext)
 
     private suspend fun sendToPhone(request: ByteArray) {
         val nodes = Wearable.getNodeClient(appContext).connectedNodes.await()
@@ -36,6 +38,7 @@ class AppGraph(context: Context) {
                 return
             }
         links.applyPhoneEnvironments(environments.environments)
+        ongoing.update(environments.working)
     }
 
     /** Reads the phone's latest environment list, in case it changed while the watch was off. */

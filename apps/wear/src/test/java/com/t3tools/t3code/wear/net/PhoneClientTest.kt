@@ -59,6 +59,18 @@ class PhoneClientTest {
     }
 
     @Test
+    fun `a reply goes to the phone as a send action`() = runTest {
+        val client = phone { PhoneReply(id = it.id, status = 200, body = "{}") }
+
+        client.sendMessage("env-1", "thread-1", "Run the tests again")
+
+        assertEquals(
+            PhoneRequest(id = sent[0].id, environmentId = "env-1", kind = "send", threadId = "thread-1", text = "Run the tests again"),
+            sent.single(),
+        )
+    }
+
+    @Test
     fun `a silent phone times out instead of hanging the screen`() = runTest {
         val client = phone { null }
         try {

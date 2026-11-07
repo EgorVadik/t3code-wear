@@ -15,21 +15,34 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.t3tools.t3code.wear.AppGraph
 import com.t3tools.t3code.wear.GraphViewModelFactory
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 private object Routes {
     const val HOME = "home"
     const val USAGE = "usage"
     const val ENVIRONMENTS = "environments"
     const val THREAD = "thread/{environmentId}/{threadId}"
+    const val REPLY = "reply/{environmentId}/{threadId}"
 
     fun thread(environmentId: String, threadId: String) = "thread/$environmentId/$threadId"
+
+    fun reply(environmentId: String, threadId: String) = "reply/$environmentId/$threadId"
 }
 
 @Composable
-fun T3WearApp(graph: AppGraph) {
+fun T3WearApp(graph: AppGraph, openThread: MutableStateFlow<Pair<String, String>?>) {
     MaterialTheme(colorScheme = T3ColorScheme) {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
+            // Opened from the watch-face indicator: show that thread on top of the list.
+            LaunchedEffect(openThread, navController) {
+                openThread.collect { target ->
+                    val (environmentId, threadId) = target ?: return@collect
+                    openThread.value = null
+                    navController.popBackStack(Routes.HOME, inclusive = false)
+                    navController.navigate(Routes.thread(environmentId, threadId))
+                }
+            }
             SwipeDismissableNavHost(navController = navController, startDestination = Routes.HOME) {
                 composable(Routes.HOME) {
                     val model: HomeViewModel = viewModel(factory = remember { GraphViewModelFactory { HomeViewModel(graph) } })
@@ -50,7 +63,17 @@ fun T3WearApp(graph: AppGraph) {
                         },
                     )
                     PollWhileVisible(model.polling)
-                    ThreadScreen(model)
+                    ThreadScreen(model, onReply = { navController.navigate(Routes.reply(environmentId, threadId)) })
+                }
+                composable(Routes.REPLY) { entry ->
+                    val environmentId = entry.arguments?.getString("environmentId").orEmpty()
+                    val threadId = entry.arguments?.getString("threadId").orEmpty()
+                    val model: ReplyViewModel = viewModel(
+                        factory = remember(environmentId, threadId) {
+                            GraphViewModelFactory { ReplyViewModel(graph, environmentId, threadId) }
+                        },
+                    )
+                    ReplyScreen(model, onSent = { navController.popBackStack() })
                 }
                 composable(Routes.USAGE) {
                     val model: UsageViewModel = viewModel(factory = remember { GraphViewModelFactory { UsageViewModel(graph) } })

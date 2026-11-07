@@ -6,6 +6,7 @@ import com.t3tools.t3code.wear.link.PhoneEnvironment
 import com.t3tools.t3code.wear.wire.ServerProvider
 import com.t3tools.t3code.wear.wire.ShellSnapshot
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -21,6 +22,15 @@ data class Fetched<T>(
 )
 
 fun describe(error: Throwable): String = error.message ?: "Something went wrong"
+
+/** Like runCatching, but a cancelled read (the screen went away) stays a cancellation. */
+private inline fun <T> attempt(block: () -> T): Result<T> = try {
+    Result.success(block())
+} catch (error: CancellationException) {
+    throw error
+} catch (error: Exception) {
+    Result.failure(error)
+}
 
 private fun <T> MutableStateFlow<Map<String, Fetched<T>>>.record(environmentId: String, result: Result<T>) = update { current ->
     val previous = current[environmentId]
@@ -44,7 +54,7 @@ class ShellRepository(private val graph: AppGraph) {
     }
 
     suspend fun refresh(environment: PhoneEnvironment): ShellSnapshot? {
-        val result = runCatching { graph.phone.shell(environment.environmentId) }
+        val result = attempt { graph.phone.shell(environment.environmentId) }
         state.record(environment.environmentId, result)
         return result.getOrNull()
     }
@@ -59,7 +69,7 @@ class UsageRepository(private val graph: AppGraph) {
         environments.filter { it.connected }
             .map { environment ->
                 async {
-                    val result = runCatching { graph.phone.providers(environment.environmentId).providers }
+                    val result = attempt { graph.phone.providers(environment.environmentId).providers }
                     state.record(environment.environmentId, result)
                 }
             }
